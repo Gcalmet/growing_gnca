@@ -1,0 +1,8 @@
+# ignore the targets folder
+# targets/
+
+# ignore the venv folder
+venv/
+
+# ignore all the .gif files
+*.gif
