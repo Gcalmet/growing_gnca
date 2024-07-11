@@ -23,17 +23,17 @@ def get_intersection_shape(cell, polygon):  # return the intersection of a circ
     polygon_shape = Polygon(polygon)
 
     if cell_circle.contains(polygon_shape):
-        cell.border = False     # the cell is not on the border of the cell set
+        #cell.border = False     # the cell is not on the border of the cell set
         return polygon_shape
     
-    cell.border = True
+    #cell.border = True
 
     # Check if the polygon fully contains the circle
     if polygon_shape.contains(cell_circle):
         return cell_circle
     
     # Otherwise, return the intersection of the polygon and the circle
-    cell.border = True
+    #cell.border = True
     intersection_shape = polygon_shape.intersection(cell_circle)
     return intersection_shape
 
@@ -42,13 +42,13 @@ class Substrate :   # the substrate is a bunch of cells
         self.model = model     # object of class Model 
         self.birth_rate = birth_rate
         self.death_rate = death_rate
-        first_cell = Cell(N//2, N//2, values = np.zeros(self.model.nb_channels))
+        first_cell = Cell(N//2, N//2, values = np.ones(self.model.nb_channels))
         first_cell.values[0] = 1.0      # live cell = 1
         first_cell.values[1] = 0.25     # angle for replication = pi/2 : vertical replication
         first_cell.values[2] = birth_rate      # replication value at the beginning
         self.pop = [first_cell]
-        # add also the four corners with 0 in replication, and 0 in color
-            # the Voronoi function doesn't work if there are less than 5 points in the substrate
+        # add also the four corners with 0 in replication, and 0 in color, they cannot move, die, replicate or update
+            # we need them because the Voronoi function doesn't work if there are less than 5 points
         corners = []
         corners.append(Cell(0, 0, values = np.zeros(self.model.nb_channels)))
         corners.append(Cell(0, N, values = np.zeros(self.model.nb_channels)))
@@ -65,8 +65,8 @@ class Substrate :   # the substrate is a bunch of cells
         # Loop through each ridge (edge) in the Voronoi diagram
         for point_indices in vor.ridge_points:
             p1, p2 = point_indices
-            neighbors[p1].append(p2)
-            neighbors[p2].append(p1)
+            neighbors[p1].append(int(p2))
+            neighbors[p2].append(int(p1))
         return vor, neighbors
     
     def population_step(self):
@@ -108,11 +108,11 @@ class Substrate :   # the substrate is a bunch of cells
             if sum_sobel_y != 0 :
                 sobel_y /= sum_sobel_y
             perception_vector = np.concatenate([cell.values, sobel_x, sobel_y])
-            update_vector = self.model.update_function(perception_vector)
+            update_vector = self.model.forward_pass(perception_vector)
             #update_vector = np.clip(update_vector, -10, 10)
             cell.values += update_rate * update_vector
             cell.values[0] = np.clip(cell.values[0], 0, 1)
-            cell.values[1] = cell.values[1] % 1
+            cell.values[1] = cell.values[1] % 1         # modulo rather than clip because it's an angle
             cell.values[2:] = np.clip(cell.values[2:], 0, 1)
         return
 
@@ -136,29 +136,41 @@ class Substrate :   # the substrate is a bunch of cells
             cell.x += force_vector[0]
             cell.y += force_vector[1]
 
-    def anim(self, nb_frames, save = False):
+    def anim(self, nb_frames, max_pop, save = False, path = None):
         # run the simulation and display the result as an animation
 
         fig, ax = plt.subplots()
         fig.set_size_inches(N//100, N//100)   # square figure
         def update(frame):
             print(f"Animation : {frame+1}/{nb_frames}" , flush=True, end='\r')
-            ax.clear()
-
+            
             self.population_step()
-            
             img, neigh = self.get_image()
-            ax.imshow(img, cmap = 'gray')
-            
             self.update_step(neigh)
             self.position_step(neigh)
+
+            ax.clear()
+            ax.imshow(img, cmap = 'gray')
+
+            nb_cells = len(self.pop)
+            if max_pop and (nb_cells > max_pop or nb_cells == 4):
+                anim.event_source.stop()
+                print()
+                print(f"Animation stopped at frame {frame} due to population size = {nb_cells}")
+            
+            if frame >= nb_frames - 1:
+                anim.event_source.stop()
+                print()
+                print(f"Animation reached the maximum number of frames: {nb_frames}")
             
             return ax
 
-        # fps = 1 / interval
-        anim = animation.FuncAnimation(fig, update, interval=20, frames=nb_frames)
+        # interval : delay between frames in milliseconds
+        # fps = 1000/interval
+        anim = animation.FuncAnimation(fig, update, frames=nb_frames, repeat=False, interval=50)
         if save:
-            anim.save('output.gif', writer='imagemagick', fps=20)
+            full_path = path + 'animation.gif'
+            anim.save(full_path, writer='imagemagick', fps=20)
             print('Animation saved')
         else:
             plt.show()
@@ -177,7 +189,7 @@ class Substrate :   # the substrate is a bunch of cells
         plt.show()
 
 
-    def run(self, nb_steps, max_pop = 200):    # without computing the image at each step
+    def run(self, nb_steps, max_pop):    # without computing the image at each step
         for i in range(nb_steps):
 
             self.population_step()
@@ -194,7 +206,7 @@ class Substrate :   # the substrate is a bunch of cells
 
         if len(self.pop) == 4 :
             img = np.ones((N, N))*255
-            img[N//2, N//2] = 0   # the center is black to make contrast
+            img = np.array(img, dtype = np.float64)
             return img, []
 
         fig, ax = plt.subplots()
@@ -211,7 +223,7 @@ class Substrate :   # the substrate is a bunch of cells
                 region_index = vor.point_region[i]
                 region = vor.regions[region_index]
                 if not -1 in region and len(region) > 0:
-                    polygon = [vor.vertices[j] for j in region]
+                    polygon = np.array([vor.vertices[j] for j in region])
                     intersection_shape = get_intersection_shape(cell, polygon)
                     if not intersection_shape.is_empty:
                         color = (1-cell.values[0], 1-cell.values[0], 1-cell.values[0])

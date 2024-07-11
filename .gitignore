@@ -1,5 +1,8 @@
 # ignore the targets folder
-# targets/
+# targets/
+
+# ignore the train_log folder
+train_log/
 
 # ignore the venv folder
 venv/
