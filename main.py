@@ -24,46 +24,64 @@ def load_model(name, path):   # load a model from the folder path+name/   (ex p
     model.score = score
     return model
 
+def map_target_to_points(target, N, nb_points):
+    points = []
+    n = 0
+    while n < nb_points :
+        i = N*np.random.random()
+        j = N*np.random.random()
+        if target[int(j), int(i)] < 0.5 :
+            points.append([j, i])
+            n += 1
+    return np.array(points)
+
+        
+
 # SUBSTRATE PARAMETERS
 N = 500             # size of the substrate (and of the target image)
-target_name = 'circle'    # name of the target image
+target_name = 'ring'    # name of the target image
 
 # CELL PARAMETERS
-nb_channels = 5     # number of channels in the model
+nb_channels = 16     # number of channels in the model
 d = 7               # equilibrium distance between cells
-D = 30              # max interaction distance between cells + diameter of the cells
+D = 30            # max interaction distance between cells = diameter of the cells
 
 # CELLULAR AUTOMATON PARAMETERS
 birth_rate = 0.9    # upper treshold for replication on channel 2
-death_rate = 0.2    # lower treshold for death on channel 0
-nb_iter = 200       # number of iterations for the simulation of each model
-max_nb_cells = 500  # maximum number of cells in the substrate : if there are more, the simulation stops
+death_rate = -0.1    # lower treshold for death on channel 2
+nb_iter = 200       # maximum number of iterations for the simulation of each model
+max_nb_cells = 300  # maximum number of cells in the substrate : if there are more, the simulation stops
 
-# GENETIC ALGORITHM PARAMETERS
-nb_indiv = 15       # number of individuals in the population
-nb_generations = 10 # number of generations for the genetic algorithm
-T = 0.2             # mutation std for the genetic algorithm
+# EVO AlGO PARAMETERS
+nb_indiv = 30       # number of individuals in the population
+nb_generations = 100 # number of generations
+nb_evals = nb_indiv * nb_generations # number of evaluations during the training
+T = 0.01             # mutation std for the evolutionary algorithm
+r_pop = 0.25        # proportion of the population taken into account for the next generation
 
 if __name__ == '__main__':
-    target = load_target(target_name+'.png')
+    target_img = load_target(target_name+'.png')
+    target_points = map_target_to_points(target_img, N, 100)
 
-    # pop = Population(target, target_name, nb_indiv, nb_iter, nb_channels, max_nb_cells, birth_rate, death_rate)
-    # best_model, scores = pop.train(nb_generations, T, save = True)
+    plt.imshow(target_img, cmap = 'gray')
+    plt.scatter(target_points[:,1], target_points[:,0], c = 'r')
+    plt.show()
 
-    # plt.plot(scores)
-    # plt.show()
+    pop = Population(target_img, target_points, target_name, nb_indiv, nb_iter, nb_channels, max_nb_cells, birth_rate, death_rate, N, d, D)
+    print("Population created")
+    best_model, scores, best_scores  = pop.train(nb_evals, T, save=True)
 
-    # sub = Substrate(best_model, birth_rate, death_rate)
-    # i = sub.run(nb_iter, max_nb_cells)
-    # sub.display(target)
+    X = [i for i in range(1,nb_generations+1) for _ in range(nb_indiv)]
+    Y = [scores[i][j] for i in range(nb_generations) for j in range(nb_indiv)]
+    plt.scatter(X, Y, alpha=0.5)
+    plt.plot(best_scores, 'r')
+    plt.yscale('log')
+    plt.xscale('log')
+    plt.show()
 
-    # sub1 = Substrate(best_model, birth_rate, death_rate)
-    # sub1.anim(nb_iter, max_nb_cells, save = False)
-
-    model = load_model('best_model', 'train_log/training_circle_0/')
-    sub = Substrate(model, birth_rate, death_rate)
+    sub = Substrate(best_model, birth_rate, death_rate, N, d, D)
     i = sub.run(nb_iter, max_nb_cells)
-    sub.display(target)
+    sub.display(target_img)
 
-    sub1 = Substrate(model, birth_rate, death_rate)
-    sub1.anim(nb_iter, max_nb_cells, save = False)
+    sub1 = Substrate(best_model, birth_rate, death_rate, N, d, D)
+    sub1.anim(nb_iter, max_nb_cells, save = True, path = '')
