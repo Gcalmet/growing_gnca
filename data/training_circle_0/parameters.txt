@@ -1,0 +1,13 @@
+target_name = circle
+nb_evals = 3000
+nb_indiv = 30
+nb_iter = 300
+nb_channels = 5
+max_nb_cells = 200
+birth_rate = 0.9
+death_rate = 0.1
+N = 500
+d = 7
+D = 30
+T = 0.2
+r_pop = 0.25
