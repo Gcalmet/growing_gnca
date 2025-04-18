@@ -1,0 +1,9 @@
+target = minus
+nb_evals = 1000
+nb_indiv = 10
+nb_iter = 100
+nb_channels = 12
+N = 500
+d = 60
+D = 100
+T = 0.1
